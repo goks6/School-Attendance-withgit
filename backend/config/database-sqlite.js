@@ -81,7 +81,7 @@ class Database {
                 if (err) console.error('Error creating users table:', err);
             });
 
-            // Students table
+            // Enhanced Students table
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS students (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +98,9 @@ class Database {
                     class TEXT,
                     section TEXT,
                     teacher_id INTEGER,
+                    blood_group TEXT,
+                    emergency_contact TEXT,
+                    gender TEXT DEFAULT 'other',
                     is_active BOOLEAN DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -161,6 +164,66 @@ class Database {
                 if (err) console.error('Error creating messages table:', err);
             });
 
+            // Enhanced Notices table
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS notices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    school_id INTEGER,
+                    author_id INTEGER,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    type TEXT CHECK(type IN ('general', 'urgent', 'event', 'holiday')) DEFAULT 'general',
+                    target_audience TEXT DEFAULT 'all',
+                    priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+                    expiry_date DATE,
+                    attachments TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (school_id) REFERENCES schools(id),
+                    FOREIGN KEY (author_id) REFERENCES users(id)
+                )
+            `, (err) => {
+                if (err) console.error('Error creating notices table:', err);
+            });
+
+            // Notice reads table (to track who read what)
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS notice_reads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    notice_id INTEGER,
+                    user_id INTEGER,
+                    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (notice_id) REFERENCES notices(id),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    UNIQUE(notice_id, user_id)
+                )
+            `, (err) => {
+                if (err) console.error('Error creating notice_reads table:', err);
+            });
+
+            // Achievements table
+            this.db.run(`
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    type TEXT CHECK(type IN ('academic', 'sports', 'cultural', 'behavior', 'other')) DEFAULT 'other',
+                    date DATE NOT NULL,
+                    level TEXT CHECK(level IN ('school', 'district', 'state', 'national')) DEFAULT 'school',
+                    position TEXT,
+                    certificate_url TEXT,
+                    remarks TEXT,
+                    awarded_by INTEGER,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (student_id) REFERENCES students(id),
+                    FOREIGN KEY (awarded_by) REFERENCES users(id)
+                )
+            `, (err) => {
+                if (err) console.error('Error creating achievements table:', err);
+            });
+
             // Create sample data after all tables are created
             setTimeout(() => {
                 this.createSampleData();
@@ -196,21 +259,53 @@ class Database {
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 `, [1, 'सुनीता देवी', '9876543211', teacherPassword, 'teacher', '5', 'A']);
 
-                // Create sample students
+                // Create sample students with enhanced fields
                 const students = [
-                    [1, 1, 'राहुल शर्मा', 'सुनीता शर्मा', 'राम शर्मा', '2015-05-15', 'नागपूर', '9876543212', '123456789012', 'STU001', '5', 'A', 2],
-                    [1, 2, 'प्रिया पाटील', 'अनीता पाटील', 'सुनील पाटील', '2015-03-20', 'नागपूर', '9876543213', '123456789013', 'STU002', '5', 'A', 2],
-                    [1, 3, 'अमित कुमार', 'सुनील कुमार', 'राज कुमार', '2015-07-10', 'नागपूर', '9876543214', '123456789014', 'STU003', '5', 'A', 2]
+                    [1, 1, 'राहुल शर्मा', 'सुनीता शर्मा', 'राम शर्मा', '2015-05-15', 'नागपूर', '9876543212', '123456789012', 'STU001', '5', 'A', 2, 'O+', '9876543299', 'male'],
+                    [1, 2, 'प्रिया पाटील', 'अनीता पाटील', 'सुनील पाटील', '2015-03-20', 'नागपूर', '9876543213', '123456789013', 'STU002', '5', 'A', 2, 'A+', '9876543298', 'female'],
+                    [1, 3, 'अमित कुमार', 'सुनील कुमार', 'राज कुमार', '2015-07-10', 'नागपूर', '9876543214', '123456789014', 'STU003', '5', 'A', 2, 'B+', '9876543297', 'male'],
+                    [1, 4, 'अनिता राव', 'सुमित्रा राव', 'विनोद राव', '2015-01-25', 'नागपूर', '9876543215', '123456789015', 'STU004', '5', 'A', 2, 'AB+', '9876543296', 'female'],
+                    [1, 5, 'विकास जोशी', 'मीरा जोशी', 'अशोक जोशी', '2015-09-12', 'नागपूर', '9876543216', '123456789016', 'STU005', '5', 'A', 2, 'O-', '9876543295', 'male'],
+                    [1, 6, 'स्नेहा देशमुख', 'प्रिया देशमुख', 'संजय देशमुख', '2015-11-08', 'नागपूर', '9876543217', '123456789017', 'STU006', '5', 'A', 2, 'A-', '9876543294', 'female']
                 ];
 
                 for (const student of students) {
                     await this.run(`
-                        INSERT INTO students (school_id, roll_number, name, mother_name, father_name, date_of_birth, address, parent_mobile, aadhar_number, student_id, class, section, teacher_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO students (school_id, roll_number, name, mother_name, father_name, date_of_birth, address, parent_mobile, aadhar_number, student_id, class, section, teacher_id, blood_group, emergency_contact, gender)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `, student);
                 }
 
-                console.log('✅ Sample data created successfully!');
+                // Create sample notices
+                const notices = [
+                    [1, 2, 'वार्षिक क्रीडा स्पर्धा', 'आगामी शुक्रवारी वार्षिक क्रीडा स्पर्धा आयोजित केली जाईल. सर्व विद्यार्थ्यांनी सहभागी व्हावे.', 'event', 'all', 'high'],
+                    [1, 2, 'पालक-शिक्षक भेट', 'या शनिवारी सकाळी 10 वाजता पालक-शिक्षक भेट आयोजित केली आहे.', 'general', 'parents', 'medium'],
+                    [1, 1, 'गणेश चतुर्थी सुट्टी', 'गणेश चतुर्थी निमित्त उद्या शाळा बंद राहील.', 'holiday', 'all', 'low']
+                ];
+
+                for (const notice of notices) {
+                    await this.run(`
+                        INSERT INTO notices (school_id, author_id, title, message, type, target_audience, priority)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    `, notice);
+                }
+
+                // Create sample achievements
+                const achievements = [
+                    [1, 'गणित स्पर्धा प्रथम', 'जिल्हा पातळीवरील गणित स्पर्धेत प्रथम क्रमांक', 'academic', '2024-01-15', 'district', '1st', 2],
+                    [2, 'नृत्य स्पर्धा द्वितीय', 'शाळा पातळीवरील नृत्य स्पर्धेत द्वितीय क्रमांक', 'cultural', '2024-01-10', 'school', '2nd', 2],
+                    [3, 'खेळ स्पर्धा तृतीय', 'क्रिकेट स्पर्धेत तृतीय क्रमांक', 'sports', '2024-01-05', 'school', '3rd', 2],
+                    [4, 'उत्तम वर्तन', 'वर्गात उत्तम वर्तनासाठी प्रशंसा', 'behavior', '2024-01-20', 'school', null, 2]
+                ];
+
+                for (const achievement of achievements) {
+                    await this.run(`
+                        INSERT INTO achievements (student_id, title, description, type, date, level, position, awarded_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `, achievement);
+                }
+
+                console.log('✅ Enhanced sample data created successfully!');
                 console.log('📱 Principal Login: 9876543210 / 9876543210');
                 console.log('👨‍🏫 Teacher Login: 9876543211 / 9876543211');
             } else {
